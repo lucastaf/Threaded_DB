@@ -3,8 +3,9 @@ using System.IO;
 using System.IO.Pipes;
 using System.Threading;
 /*
- * Alunos: Lucas Bittencourt Rauch
- * Andre Mello
+ * Alunos: 
+ * Lucas Bittencourt
+ * André de Melo
  * 
  * 
  * Explicação:
@@ -14,6 +15,7 @@ using System.Threading;
  * Insert-> INSERT <<Nome_Do_Registro>>
  * Delete-> DELETE <<ID>>
  * Select-> SELECT <<ID>>
+ * Truncate-> TRUNCATE
  */
 partial class Program
 {

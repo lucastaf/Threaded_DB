@@ -25,6 +25,7 @@ partial class Program
                 using (StreamReader reader = new StreamReader(pipeServer))
                 {
                     string message = reader.ReadLine();
+                    Console.WriteLine("Mensagem recebida - {0}", message);
                     Console.WriteLine(requisitionHandler.ParseInstruction(message));
                 }
             }
@@ -87,7 +88,6 @@ class SQLHandler
         using (StreamWriter w = File.AppendText(dataBaseFile))
         {
             string content = (fileText != "" ? "\r\n" : "") + ID.ToString() + " '" + registro.name + "'";
-            Console.WriteLine(content);
             w.Write(content);
         }
         ;
