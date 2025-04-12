@@ -1,6 +1,4 @@
-﻿using System.IO;
-using System.IO.Pipes;
-using System.Threading;
+﻿using System.IO.Pipes;
 using DBRequestHandler.Context;
 using DBRequestHandler.Handlers;
 
@@ -8,17 +6,19 @@ namespace DBRequestHandler
 {
     internal class Server
     {
+        private readonly CustomThreadPool pool = new CustomThreadPool(10);
+
         bool running;
         Thread? runningThread;
 
-        private readonly SemaphoreSlim _semaphore;
         private readonly string _pipeName;
         private readonly SQLHandler _sqlHandler;
+        private readonly SemaphoreSlim _semaphore;
         public Server(string pipeName, string databasePath, int maxThreadsNumber, string rowSeparator, string columnSeparator)
         {
             _pipeName = pipeName;
-            _sqlHandler = new SQLHandler(databasePath, rowSeparator, columnSeparator);
             _semaphore = new SemaphoreSlim(maxThreadsNumber, maxThreadsNumber);
+            _sqlHandler = new SQLHandler(databasePath, rowSeparator, columnSeparator);
         }
 
         public void Start()
@@ -48,22 +48,40 @@ namespace DBRequestHandler
                 NamedPipeServerStream pipeStream = new NamedPipeServerStream(_pipeName, PipeDirection.InOut, 254);
                 pipeStream.WaitForConnection();
 
-                // Read input and parse it
+                // Read client request
                 StreamReader streamReader = new StreamReader(pipeStream);
-                string request = streamReader.ReadLine();
-                Dictionary<string, string> parsedInstruction = _sqlHandler.ParseInstruction(request);
-
-                if (parsedInstruction.TryGetValue("error", out string? value))
+                string request = streamReader.ReadLine(); 
+                while (request == null)
                 {
-                    throw new Exception(value);
+                    request = streamReader.ReadLine();
                 }
 
-                // If valid input, pass it to be processed
-                ThreadPool.QueueUserWorkItem(ProcessClientRequest, new RequestContext
+                // Parse client requested query
+                Dictionary<string, string> parsedInstruction = _sqlHandler.ParseInstruction(request);
+                if (parsedInstruction.TryGetValue("error", out string? value))
                 {
-                    PipeStream = pipeStream,
-                    ParsedInstruction = parsedInstruction
-                });
+                    using (StreamWriter streamWriter = new StreamWriter(pipeStream) { AutoFlush = true })
+                    {
+                        streamWriter.WriteLine(value);
+                    }
+
+                    pipeStream.Dispose(); // Important: close the stream after sending the error
+                    return; // Exit early so the invalid request isn’t processed further
+                }
+                else
+                {
+                    // If valid input, pass it to be processed
+                    pool.QueueUserWorkItem(ProcessClientRequest, new RequestContext
+                    {
+                        PipeStream = pipeStream,
+                        ParsedInstruction = parsedInstruction
+                    });
+                    //ThreadPool.QueueUserWorkItem(ProcessClientRequest, new RequestContext
+                    //{
+                    //    PipeStream = pipeStream,
+                    //    ParsedInstruction = parsedInstruction
+                    //});
+                }
 
             }
             catch (Exception e)

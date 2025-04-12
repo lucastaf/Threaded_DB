@@ -1,8 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-using System.Runtime.ExceptionServices;
-using System.Text.RegularExpressions;
-using DBRequestHandler.Database.Models;
-using Microsoft.Win32;
+﻿using DBRequestHandler.Database.Models;
 
 namespace DBRequestHandler.Handlers
 {
@@ -78,16 +74,18 @@ namespace DBRequestHandler.Handlers
 
             if (parsedInstruction.ContainsKey("nome"))
             {
+                string searchedRowName = parsedInstruction["nome"];
                 foreach (string row in databaseRows)
                 {
-                    if (row.Contains(parsedInstruction["nome"])) 
-                       {
+                    string rowName = row.Split(_columnSeparator)[1];
+                    if (rowName == searchedRowName) 
+                    {
                         return row;
                     }   
                 }
             }
 
-            return $"Registro {parsedInstruction.ToString()} não encontrado";
+            return $"Registro não encontrado";
         }
 
         public string Insert(Dictionary<string, string> parsedInstruction)
@@ -173,10 +171,14 @@ namespace DBRequestHandler.Handlers
                     {
                         parsedInstruction.Add("allRows", "*");
                     } 
-                    else
+                    else if (instructionParts[1].Split("=").Length == 2)
                     {
                         string[] condition = instructionParts[1].Split("=");
                         parsedInstruction.Add(condition[0], condition[1]);
+                    } 
+                    else
+                    {
+                        parsedInstruction.Add("error", $"Error: Comando {instruction} não suportado ou inválido. ");
                     }
 
                     break;
@@ -215,9 +217,9 @@ namespace DBRequestHandler.Handlers
                 case "TRUNCATE":
                     break;
 
-            default:
-                parsedInstruction.Add("error", "Error: Comando não suportado ou inválido");
-                break;
+                default:
+                    parsedInstruction.Add("error", "Error: Comando não suportado ou inválido");
+                    break;
             }
 
             return parsedInstruction;

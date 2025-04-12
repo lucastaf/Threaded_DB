@@ -1,5 +1,4 @@
 ﻿using DBRequestHandler;
-using System.Threading;
 
 string pipeName = "database";
 string databasePath = Path.Combine(Directory.GetCurrentDirectory(), "Database/database.txt");
@@ -14,18 +13,13 @@ ThreadPool.SetMaxThreads(maxThreadsNumber, maxThreadsNumber);
 // Cria uma instância do cliente
 Client client = new Client(pipeName);
 
-// Cria uma instância do servidor e inicia-o
+// Cria uma instância do servidor e inicia ele
 Server server = new Server(pipeName, databasePath, maxThreadsNumber, rowSeparator, columnSeparator);
-ThreadPool.QueueUserWorkItem(_ => server.Start());
+server.Start();
 
 Console.WriteLine("Servidor iniciado. Digite 'help' para listar possiveis instruções.");
 Console.WriteLine("Qualquer comando SQL inserido será enfileirado para execução posterior.");
 
-client.QueueInstruction("Select 1"); 
-client.QueueInstruction("Select 2"); 
-client.QueueInstruction("Select 3"); 
-client.QueueInstruction("Select 3"); 
-client.QueueInstruction("Select 4"); 
 // Mantém o programa em execução
 while (true)
 {
@@ -39,6 +33,15 @@ while (true)
     {
         Console.Write("Entrada inválida. Tente novamente: ");
         inputQuery = Console.ReadLine();
+    }
+
+    // Se entrada for 'quit', encerre o programa
+    if (inputQuery.ToLower() == "quit")
+    {
+        Console.Clear();
+        Console.WriteLine("Obrigado por utilizar nosso programa!");
+        Thread.Sleep(1000);
+        Environment.Exit(0);
     }
 
     // Se a entrada for 'clear', limpa a tela e continua o loop
@@ -75,13 +78,6 @@ while (true)
         Environment.Exit(0);
     }
 
-    // Se a entrada for 'run', executa todas as instruções enfileiradas
-    if (inputQuery.ToLower() == "run")
-    {
-        client.ExecuteAllInstructions();
-        continue;
-    }
-
     // Enfileira a instrução para execução posterior
-    client.QueueInstruction(inputQuery);
+    client.SendRequest(inputQuery);
 }
