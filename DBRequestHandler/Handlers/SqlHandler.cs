@@ -1,6 +1,8 @@
 ﻿using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using DBRequestHandler.Database.Models;
+using Microsoft.Win32;
 
 namespace DBRequestHandler.Handlers
 {
@@ -20,7 +22,11 @@ namespace DBRequestHandler.Handlers
                 File.Create(databasePath).Close();
                 Console.WriteLine($"Created database file at {databasePath}");
             }
+        }
 
+        private string[] getDatabaseRows()
+        {
+            return File.ReadAllText(_databasePath).Split(_rowSeparator);
         }
 
         private int getLine(int id)
@@ -51,35 +57,89 @@ namespace DBRequestHandler.Handlers
                 }
             }
             return -1;
-
         }
 
-        private string Insert(Registro registro)
+        public string Select(Dictionary<string, string> parsedInstruction)
         {
-            string fileText = File.ReadAllText(_databasePath);
-            string[] lines = fileText.Split("\r\n");
+            string[] databaseRows = getDatabaseRows();
+            if (parsedInstruction.ContainsKey("allRows"))
+            {
+                return String.Join(" ", databaseRows);
+            }
+            
+            if (parsedInstruction.ContainsKey("id"))
+            {
+                int rowId = getLine(int.Parse(parsedInstruction["id"]));
+                if (rowId != -1)
+                {
+                    return databaseRows[rowId];
+                }
+            }
 
+            if (parsedInstruction.ContainsKey("nome"))
+            {
+                foreach (string row in databaseRows)
+                {
+                    if (row.Contains(parsedInstruction["nome"])) 
+                       {
+                        return row;
+                    }   
+                }
+            }
+
+            return $"Registro {parsedInstruction.ToString()} não encontrado";
+        }
+
+        public string Insert(Dictionary<string, string> parsedInstruction)
+        {
+            Registro newRegistro = new Registro(int.Parse(parsedInstruction["id"]), parsedInstruction["nome"]);
+
+            string[] lines = getDatabaseRows();
             string lastLine = lines.Length > 0 ? lines[^1] : "";
 
-            if (registro.Id == null)
+            if (newRegistro.Id == null)
             {
-                registro.Id = lastLine != "" ? int.Parse(lastLine.Split(' ')[0]) + 1 : 0;
+                newRegistro.Id = lastLine != "" ? int.Parse(lastLine.Split(' ')[0]) + 1 : 0;
             }
 
             using (StreamWriter w = File.AppendText(_databasePath))
             {
-                string newRegistro = (fileText != "" ? "\r\n" : "") + registro.Id + ", '" + registro.Nome + "'";
-                w.Write(newRegistro);
+                string formattedNewRegistro = (lines.Length != 0 ? "\r\n" : "") + _columnSeparator + _columnSeparator;
+                w.Write(formattedNewRegistro);
             }
 
-            return $"INSERIDO REGISTRO -- {registro.Id}, {registro.Nome}";
+            return $"INSERIDO REGISTRO -- {newRegistro.Id}, {newRegistro.Nome}";
         }
 
-        private string Delete(int id)
+        public string Update(Dictionary<string, string> parsedString)
+        {
+            string[] databaseRows = getDatabaseRows();
+            bool updated = false;
+
+            for (int i = 0; i < databaseRows.Length; i++)
+            {
+                string[] columns = databaseRows[i].Split(_columnSeparator);
+                string rowId = columns[0];
+
+                if (rowId == parsedString["id"])
+                {
+                    // Atualiza a linha com os novos dados
+                    databaseRows[i] = rowId + _columnSeparator + parsedString["nome"];
+                    updated = true;
+                    break; // Sai do loop após atualizar
+                }
+            }
+
+            File.WriteAllText(_databasePath, string.Join("\r\n", databaseRows));
+
+            return updated ? "Registro atualizado com sucesso." : "Registro não encontrado.";
+        }
+
+        public string Delete(Dictionary<string, string> parsedInstruction)
         {
             string fileText = File.ReadAllText(_databasePath);
             List<string> lines = fileText.Split("\r\n").ToList();
-            int index = getLine(id);
+            int index = getLine(int.Parse(parsedInstruction["id"]));
             if (index == -1) return "ID NAO ENCONTRADO";
 
             string deleted = lines[index];
@@ -88,159 +148,79 @@ namespace DBRequestHandler.Handlers
             return $"DELETADO REGISTRO -- {deleted}";
         }
 
-        private string Delete(string nome)
-        {
-            string fileText = File.ReadAllText(_databasePath);
-            List<string> lines = fileText.Split("\r\n").ToList();
-
-            int index = lines.FindIndex(line => line.Contains($"'{nome}'", StringComparison.OrdinalIgnoreCase));
-            if (index == -1) return "NOME NAO ENCONTRADO";
-
-            string deleted = lines[index];
-            lines.RemoveAt(index);
-            File.WriteAllText(_databasePath, string.Join("\r\n", lines));
-            return $"DELETADO REGISTRO -- {deleted}";
-        }
-
-        private string Select(int registroId)
-        {
-            string fileText = File.ReadAllText(_databasePath);
-            string[] lines = fileText.Split("\r\n");
-            int selectedRegistroIndex = getLine(registroId);
-            if (selectedRegistroIndex == -1)
-            {
-                return "ID NAO ENCONTRADO";
-            }
-            else
-            {
-                return lines[selectedRegistroIndex];
-            }
-        }
-
-        private string SelectAll()
-        {
-            string[] lines = File.ReadAllText(_databasePath).Split("\r\n");
-            return String.Join(" ", lines);
-        }
-
-        private string Truncate()
+        public string Truncate()
         {
             File.WriteAllText(_databasePath, "");
             return "LIMPOU A TABELA";
         }
 
-
-        public string ParseInstruction(string instruction)
+        public Dictionary<string, string> ParseInstruction(string instruction)
         {
             string[] instructionParts = instruction.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             string command = instructionParts[0].ToUpper();
+            Dictionary<string, string> parsedInstruction = new Dictionary<string, string>()
+            {
+                {"command", command}  
+            };
 
             switch (command)
             {
-                case "INSERT":
-                    Registro registro = new Registro();
-
-                    foreach (var part in instructionParts.Skip(1))
+                case "SELECT":
+                    // SELECT *
+                    // SELECT id=5
+                    // SELECT nome='andre'
+                    if (instructionParts[1] == "*")
                     {
-                        if (part.StartsWith("id=", StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (int.TryParse(part.Substring(3), out int id))
-                            {
-                                registro.Id = id;
-                            }
-                            else
-                            {
-                                return "INSERT INVÁLIDO: id mal formatado";
-                            }
-                        }
-                        else if (part.StartsWith("nome=", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var match = Regex.Match(part, "nome='([^']+)'", RegexOptions.IgnoreCase);
-                            if (match.Success)
-                            {
-                                registro.Nome = match.Groups[1].Value;
-                            }
-                            else
-                            {
-                                return "INSERT INVÁLIDO: nome mal formatado";
-                            }
-                        }
-                    }
-
-                    if (string.IsNullOrEmpty(registro.Nome))
-                        return "INSERT INVÁLIDO: faltando nome";
-
-                    if (registro.Id == 0)
-                        return "INSERT INVÁLIDO: faltando id";
-
-                    return Insert(registro);
-
-                case "DELETE":
-                    if (instructionParts.Length < 2)
-                        return "DELETE INVÁLIDO: parâmetro ausente";
-
-                    string param = instructionParts[1];
-
-                    if (param.StartsWith("id=", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (int.TryParse(param.Substring(3), out int id))
-                        {
-                            return Delete(id);
-                        }
-                        else
-                        {
-                            return "DELETE INVÁLIDO: id mal formatado";
-                        }
-                    }
-                    else if (param.StartsWith("nome=", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var match = Regex.Match(param, "nome='([^']+)'", RegexOptions.IgnoreCase);
-                        if (match.Success)
-                        {
-                            return Delete(match.Groups[1].Value);
-                        }
-                        else
-                        {
-                            return "DELETE INVÁLIDO: nome mal formatado";
-                        }
-                    }
+                        parsedInstruction.Add("allRows", "*");
+                    } 
                     else
                     {
-                        return "DELETE INVÁLIDO: parâmetro não reconhecido";
+                        string[] condition = instructionParts[1].Split("=");
+                        parsedInstruction.Add(condition[0], condition[1]);
                     }
 
-                case "SELECT":
-                    if (instructionParts.Length < 2)
-                        return "SELECT INVÁLIDO. Formato esperado: SELECT <id>";
+                    break;
 
-                    string selectFields = instructionParts[1].ToLower();
-                    string[] fields = selectFields.Split(",", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                case "INSERT":
+                    // Example: INSERT id=7 nome='João'
+                    // Get id and name
+                    string[] fisrtAttr = instructionParts[1].Split("=");
+                    string[] secondAttr = instructionParts[2].Split("=");
+                    
+                    parsedInstruction.Add(fisrtAttr[0], fisrtAttr[1]);
+                    parsedInstruction.Add(secondAttr[0], secondAttr[1]);
 
-                    if (selectFields == "*")
+                    break;
+
+                case "UPDATE":
+                    // UPDATE nome='andre' WHERE id=5
+                    string nome = instructionParts[1].Split("=")[2];
+                    string id = instructionParts[3].Split("=")[2];
+
+                    parsedInstruction.Add("nome", nome);
+                    parsedInstruction.Add("id", id);
+
+                    break;
+
+                case "DELETE":
+                    // DELETE id=7 nome='João'
+                    // Get id, or name, or id and name
+                    for (int i = 1; i < instructionParts.Length; i++)
                     {
-                        return SelectAll();
+                        string[] attr = instructionParts[i].Split("=");
+                        parsedInstruction.Add(attr[0], attr[1]);
                     }
-
-                    if (int.TryParse(instructionParts[1], out int registroId))
-                    {
-                        try
-                        {
-                            return Select(registroId);
-                        }
-                        catch (Exception ex)
-                        {
-                            return $"SELECT INVÁLIDO. Erro: {ex.Message}";
-                        }
-                    }
-
-                    return "SELECT INVÁLIDO. Id no formato errado";
+                    break;
 
                 case "TRUNCATE":
-                    return Truncate();
+                    break;
 
-                default:
-                    return "INVALID INSTRUCTION";
+            default:
+                parsedInstruction.Add("error", "Error: Comando não suportado ou inválido");
+                break;
             }
-        }
+
+            return parsedInstruction;
+        }   
     }
 }

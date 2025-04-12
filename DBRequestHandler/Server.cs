@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.IO.Pipes;
 using System.Threading;
+using DBRequestHandler.Context;
 using DBRequestHandler.Handlers;
 
 namespace DBRequestHandler
@@ -48,12 +49,21 @@ namespace DBRequestHandler
                 pipeStream.WaitForConnection();
 
                 // Read input and parse it
-                //StreamReader streamReader = new StreamReader(pipeStream);
-                //string request = streamReader.ReadLine();
-                //string response = _sqlHandler.ParseInstruction(request);
+                StreamReader streamReader = new StreamReader(pipeStream);
+                string request = streamReader.ReadLine();
+                Dictionary<string, string> parsedInstruction = _sqlHandler.ParseInstruction(request);
+
+                if (parsedInstruction.TryGetValue("error", out string? value))
+                {
+                    throw new Exception(value);
+                }
 
                 // If valid input, pass it to be processed
-                ThreadPool.QueueUserWorkItem(ProcessClientRequest, pipeStream);
+                ThreadPool.QueueUserWorkItem(ProcessClientRequest, new RequestContext
+                {
+                    PipeStream = pipeStream,
+                    ParsedInstruction = parsedInstruction
+                });
 
             }
             catch (Exception e)
@@ -63,21 +73,59 @@ namespace DBRequestHandler
                 
         private void ProcessClientRequest(object stateInfo)
         {
-            _semaphore.Wait();
-
-            NamedPipeServerStream pipeStream = (NamedPipeServerStream)stateInfo;
+            var context = (RequestContext)stateInfo;
+            NamedPipeServerStream pipeStream = context.PipeStream;
+            Dictionary<string, string> parsedQuery = context.ParsedInstruction;
 
             StreamReader streamReader = new StreamReader(pipeStream);
             StreamWriter streamWriter = new StreamWriter(pipeStream) { AutoFlush = true };
 
-            string line = streamReader.ReadLine();
+            // Verifica se ouve um erro durante o parse
+            string error;
+            if (parsedQuery.TryGetValue("error", out error))
+            {
+                throw new Exception(error);
+            }
 
-            string response = _sqlHandler.ParseInstruction(line);
+            // TODO: Melhorar isso, deixar mais enxuto
+            string response = "";
+            switch (parsedQuery["command"])
+            {
+                case "SELECT":
+                    _semaphore.Wait();
+                    response = _sqlHandler.Select(parsedQuery);
+                    _semaphore.Release();
+                    break;
+
+                case "INSERT":
+                    _semaphore.Wait();
+                    response = _sqlHandler.Insert(parsedQuery);
+                    _semaphore.Release();
+                    break;
+
+                case "UPDATE":
+                    _semaphore.Wait();
+                    response += _sqlHandler.Update(parsedQuery);
+                    _semaphore.Release();
+                    break;
+
+                case "DELETE":
+                    _semaphore.Wait();
+                    response = _sqlHandler.Delete(parsedQuery);
+                    _semaphore.Release();
+                    break;
+
+                case "TRUNCATE":
+                    _semaphore.Wait();
+                    response = _sqlHandler.Truncate();
+                    _semaphore.Release();
+                    break;
+            }
+
             streamWriter.WriteLine($"{response}");
 
             pipeStream.Close();
             pipeStream.Dispose();
-            _semaphore.Release();
         }
     }
 }
