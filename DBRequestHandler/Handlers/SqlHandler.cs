@@ -93,16 +93,16 @@ namespace DBRequestHandler.Handlers
             Registro newRegistro = new Registro(int.Parse(parsedInstruction["id"]), parsedInstruction["nome"]);
 
             string[] lines = getDatabaseRows();
-            string lastLine = lines.Length > 0 ? lines[^1] : "";
 
             if (newRegistro.Id == null)
             {
+                string lastLine = lines.Length > 0 ? lines[^1] : "";
                 newRegistro.Id = lastLine != "" ? int.Parse(lastLine.Split(' ')[0]) + 1 : 0;
             }
 
             using (StreamWriter w = File.AppendText(_databasePath))
             {
-                string formattedNewRegistro = (lines.Length != 0 ? "\r\n" : "") + _columnSeparator + _columnSeparator;
+                string formattedNewRegistro = (lines.Length != 0 ? "\r\n" : "") + newRegistro.Id + _columnSeparator + newRegistro.Nome;
                 w.Write(formattedNewRegistro);
             }
 
@@ -184,7 +184,7 @@ namespace DBRequestHandler.Handlers
                     break;
 
                 case "INSERT":
-                    // Example: INSERT id=7 nome='João'
+                    // Example: INSERT id=7 nome=João
                     // Get id and name
                     string[] fisrtAttr = instructionParts[1].Split("=");
                     string[] secondAttr = instructionParts[2].Split("=");

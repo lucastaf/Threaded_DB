@@ -1,7 +1,7 @@
 ﻿using DBRequestHandler;
 
 string pipeName = "database";
-string databasePath = Path.Combine(Directory.GetCurrentDirectory(), "Database/database.txt");
+string databasePath = Path.Combine(Directory.GetCurrentDirectory(), "Database\\database.txt");
 int maxThreadsNumber = 254;
 string rowSeparator = "\r\n";
 string columnSeparator = ", ";
@@ -35,12 +35,13 @@ while (true)
         inputQuery = Console.ReadLine();
     }
 
-    // Se entrada for 'quit', encerre o programa
+    // Se a entrada for 'quit', encerra a aplicação em 5 segundos
     if (inputQuery.ToLower() == "quit")
     {
         Console.Clear();
         Console.WriteLine("Obrigado por utilizar nosso programa!");
-        Thread.Sleep(1000);
+        server.Stop(); // Para o servidor de forma graciosa
+        Thread.Sleep(5000);
         Environment.Exit(0);
     }
 
@@ -54,28 +55,18 @@ while (true)
     if (inputQuery.ToLower() == "help")
     {
         Console.WriteLine("Comandos disponíveis (Banco):");
-        Console.WriteLine("Select <id> - Seleciona um item da tabela");
-        Console.WriteLine("Insert nome='<nome>' id=<id> - Inseri um item na lista");
-        Console.WriteLine("Delete <id> - Remove um item da lista");
-        Console.WriteLine("Truncate - Limpa a lista");
+        Console.WriteLine("Select id=<id> - Seleciona um registro do banco");
+        Console.WriteLine("Insert nome=<nome> id=<id> - Inseri um registro no banco");
+        Console.WriteLine("Update nome=<nome> WHERE id=<id> - Atuliza um registro no banco");
+        Console.WriteLine("Delete <id> - Remove um registro do banco");
+        Console.WriteLine("Truncate - Limpa todos os registros banco");
 
         Console.WriteLine(" ");
         Console.WriteLine("Comandos disponíveis (Outros):");
         Console.WriteLine("'clear' - Limpa a tela");
         Console.WriteLine("'quit' - Encerra o programa");
-        Console.WriteLine("'run' - Executa todas as instruções enfileiradas");
         Console.WriteLine("'help' - Lista os comandos disponíveis");
         continue;
-    }
-
-    // Se a entrada for 'quit', encerra a aplicação em 5 segundos
-    if (inputQuery.ToLower() == "quit")
-    {
-        Console.Clear();
-        Console.WriteLine("Obrigado por utilizar nosso programa!");
-        server.Stop(); // Para o servidor de forma graciosa
-        Thread.Sleep(5000);
-        Environment.Exit(0);
     }
 
     // Enfileira a instrução para execução posterior

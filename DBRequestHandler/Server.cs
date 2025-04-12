@@ -65,8 +65,8 @@ namespace DBRequestHandler
                         streamWriter.WriteLine(value);
                     }
 
-                    pipeStream.Dispose(); // Important: close the stream after sending the error
-                    return; // Exit early so the invalid request isn’t processed further
+                    pipeStream.Dispose();
+                    return;
                 }
                 else
                 {
