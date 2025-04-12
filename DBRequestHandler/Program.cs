@@ -55,11 +55,10 @@ while (true)
     if (inputQuery.ToLower() == "help")
     {
         Console.WriteLine("Comandos disponíveis (Banco):");
-        Console.WriteLine("Select id=<id> - Seleciona um registro do banco");
-        Console.WriteLine("Insert nome=<nome> id=<id> - Inseri um registro no banco");
-        Console.WriteLine("Update nome=<nome> WHERE id=<id> - Atuliza um registro no banco");
-        Console.WriteLine("Delete <id> - Remove um registro do banco");
-        Console.WriteLine("Truncate - Limpa todos os registros banco");
+        Console.WriteLine("Select (nome ou id)=(<nome> ou <id>) - Seleciona um item da tabela");
+        Console.WriteLine("Insert nome='<nome>' id=<id> - Inseri um item na lista");
+        Console.WriteLine("Delete <id> - Remove um item da lista");
+        Console.WriteLine("Truncate - Limpa a lista");
 
         Console.WriteLine(" ");
         Console.WriteLine("Comandos disponíveis (Outros):");
